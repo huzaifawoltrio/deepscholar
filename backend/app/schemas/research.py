@@ -14,6 +14,7 @@ class ReferenceOut(BaseModel):
     authors: list[str]
     date: str
     publication: str
+    url: Optional[str] = None
     impactFactor: Optional[float] = None
 
 

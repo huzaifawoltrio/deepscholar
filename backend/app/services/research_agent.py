@@ -47,8 +47,9 @@ sources retrieved from scholarly databases.
 Your task:
 1. Synthesize a comprehensive, well-structured academic response to the user's \
    question using ONLY the provided sources.
-2. Reference sources using inline citation markers in the format [N](#) where \
-   N is the source number. For example: "Recent studies show that...[1](#)."
+2. Reference sources using inline citation markers in the format [N](URL) where \
+   N is the source number and URL is the source's URL from the provided context. \
+   For example: "Recent studies show that...[1](https://arxiv.org/abs/1234)."
 3. Do NOT invent or fabricate any references. ONLY cite sources from the \
    provided context below.
 4. Structure your answer with clear paragraphs. Use markdown formatting where \
@@ -165,15 +166,19 @@ async def run_research(query: str) -> dict[str, Any]:
         }
 
     # ------------------------------------------------------------------
-    # Step 2: Embed sources into Pinecone and retrieve relevant ones
+    # Step 2: Use freshly gathered sources directly for synthesis
     # ------------------------------------------------------------------
+    # NOTE: We skip Pinecone retrieval because the shared global index
+    # mixes results from all past queries, returning stale/irrelevant
+    # sources. The freshly gathered sources are already query-specific
+    # and most relevant.
+    sources_for_synthesis = gathered_sources
+
+    # Optionally store in Pinecone for long-term knowledge base (fire-and-forget)
     try:
         vectorstore.embed_and_store(gathered_sources)
-        retrieved = vectorstore.retrieve(query, top_k=10)
-        sources_for_synthesis = retrieved if retrieved else gathered_sources
     except Exception as exc:
-        logger.error("Pinecone operation failed, using raw sources: %s", exc)
-        sources_for_synthesis = gathered_sources
+        logger.warning("Pinecone storage failed (non-blocking): %s", exc)
 
     # ------------------------------------------------------------------
     # Step 3: Build context and synthesize academic response

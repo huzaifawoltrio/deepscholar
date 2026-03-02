@@ -27,6 +27,7 @@ def format_references(sources: list[dict[str, Any]]) -> list[ReferenceOut]:
             authors=source.get("authors", []) or ["Unknown"],
             date=source.get("date", "N/A"),
             publication=source.get("publication", "Unknown"),
+            url=source.get("url", ""),
             impactFactor=source.get("impactFactor"),
         )
         references.append(ref)
@@ -58,10 +59,13 @@ def build_context_block(sources: list[dict[str, Any]]) -> str:
         date = source.get("date", "N/A")
         publication = source.get("publication", "Unknown")
 
+        url = source.get("url", "").strip()
+
         lines.append(
             f"[{idx}] {title}\n"
             f"    Authors: {authors}\n"
             f"    Date: {date} | Publication: {publication}\n"
+            f"    URL: {url}\n"
             f"    Content: {abstract}\n"
         )
 
