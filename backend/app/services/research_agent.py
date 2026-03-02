@@ -8,7 +8,7 @@ import traceback
 from typing import Any
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.prebuilt import create_react_agent
 
 from app.core.config import settings
@@ -96,8 +96,16 @@ def _parse_sources_from_agent(output: str) -> list[dict[str, Any]]:
     return []
 
 
-async def run_research(query: str) -> dict[str, Any]:
+async def run_research(
+    query: str,
+    chat_history: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
     """Run the full research pipeline for a user query.
+
+    Args:
+        query: The user's research question.
+        chat_history: Optional list of previous messages [{"role": ..., "content": ...}]
+                      to give the AI conversational memory.
 
     Returns a dict with 'response' (str) and 'references' (list[ReferenceOut]).
     """
@@ -189,8 +197,17 @@ async def run_research(query: str) -> dict[str, Any]:
     synthesis_llm = _get_llm(temperature=0.3)
     messages = [
         SystemMessage(content=SYNTHESIS_SYSTEM_PROMPT.format(context=context_block)),
-        HumanMessage(content=query),
     ]
+
+    # Inject prior conversation history so the AI remembers the chat
+    if chat_history:
+        for hist_msg in chat_history:
+            if hist_msg["role"] == "user":
+                messages.append(HumanMessage(content=hist_msg["content"]))
+            elif hist_msg["role"] == "assistant":
+                messages.append(AIMessage(content=hist_msg["content"]))
+
+    messages.append(HumanMessage(content=query))
 
     try:
         synthesis_response = await synthesis_llm.ainvoke(messages)
