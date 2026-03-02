@@ -31,6 +31,11 @@ sources. Call each tool at least once. Collect as many relevant results as \
 possible. When you have enough sources (aim for at least 5-10 diverse results), \
 stop and return all gathered sources as a single JSON array.
 
+IMPORTANT: When using search tools like arXiv or Google Scholar, you MUST \
+extract the core keywords from the user's query and pass ONLY concise keywords \
+(e.g., 'artificial intelligence medical diagnosis') rather than the full natural \
+language question.
+
 IMPORTANT: Return ONLY a valid JSON array of source objects at the very end. \
 Each object must have: title, authors, date, publication, abstract, url.
 Do NOT include any other text outside the JSON array in your final response.\

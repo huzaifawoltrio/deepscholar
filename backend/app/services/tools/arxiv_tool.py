@@ -16,6 +16,7 @@ MAX_RESULTS = 5
 @tool
 def search_arxiv(query: str) -> list[dict[str, Any]]:
     """Search arXiv for academic papers related to the query.
+    IMPORTANT: The query MUST be a short, concise set of keywords (e.g. 'artificial intelligence medicine'), NOT a full sentence.
 
     Returns a list of dicts with keys:
         title, authors, date, publication, abstract, url

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import time
 from typing import Any
 
 from pinecone import Pinecone, ServerlessSpec
@@ -50,10 +51,11 @@ def _source_id(source: dict) -> str:
     return hashlib.md5(raw).hexdigest()
 
 
-def embed_and_store(sources: list[dict[str, Any]]) -> None:
+def embed_and_store(sources: list[dict[str, Any]], namespace: str = "") -> None:
     """Embed source abstracts/snippets and upsert into Pinecone.
 
     Each source dict should have: title, authors, date, publication, abstract, url.
+    If namespace is provided, vectors are stored in that specific namespace.
     """
     if not sources:
         return
@@ -61,36 +63,63 @@ def embed_and_store(sources: list[dict[str, Any]]) -> None:
     index = _get_pinecone_index()
     embeddings = _get_embeddings()
 
-    texts = [s.get("abstract", "") or s.get("title", "") for s in sources]
-    vectors = embeddings.embed_documents(texts)
-
+    # Batch process to avoid hitting Google GenAI Free Tier rate limits (100 RPM)
+    BATCH_SIZE = 50
     upsert_data = []
-    for source, vec in zip(sources, vectors):
-        doc_id = _source_id(source)
-        metadata = {
-            "title": source.get("title", ""),
-            "authors": ", ".join(source.get("authors", [])),
-            "date": source.get("date", ""),
-            "publication": source.get("publication", ""),
-            "abstract": (source.get("abstract", "") or "")[:1000],
-            "url": source.get("url", ""),
-        }
-        upsert_data.append((doc_id, vec, metadata))
 
-    index.upsert(vectors=upsert_data)
-    logger.info("Upserted %d vectors into Pinecone", len(upsert_data))
+    for i in range(0, len(sources), BATCH_SIZE):
+        batch_sources = sources[i:i + BATCH_SIZE]
+        texts = [s.get("abstract", "") or s.get("title", "") for s in batch_sources]
+        
+        # Embed the batch with robust retry logic
+        max_retries = 3
+        vectors = None
+        for attempt in range(max_retries):
+            try:
+                vectors = embeddings.embed_documents(texts)
+                logger.debug("Successfully embedded batch %d", i)
+                break
+            except Exception as e:
+                logger.warning("Embedding batch %d failed on attempt %d: %s. Quota hit, sleeping 40s...", i, attempt + 1, e)
+                if attempt == max_retries - 1:
+                    logger.error("Max retries reached. Failing this batch.")
+                    raise
+                time.sleep(40)
+
+        if not vectors:
+            continue
+
+        for source, vec in zip(batch_sources, vectors):
+            doc_id = _source_id(source)
+            metadata = {
+                "title": source.get("title", ""),
+                "authors": ", ".join(source.get("authors", [])),
+                "date": source.get("date", ""),
+                "publication": source.get("publication", ""),
+                "abstract": (source.get("abstract", "") or "")[:1000],
+                "url": source.get("url", ""),
+            }
+            upsert_data.append((doc_id, vec, metadata))
+            
+        # Prevent spamming the API too fast within a single minute
+        if i + BATCH_SIZE < len(sources):
+            time.sleep(2)
+
+    index.upsert(vectors=upsert_data, namespace=namespace)
+    logger.info("Upserted %d vectors into Pinecone (namespace: '%s')", len(upsert_data), namespace)
 
 
-def retrieve(query: str, top_k: int = 10) -> list[dict[str, Any]]:
+def retrieve(query: str, top_k: int = 10, namespace: str = "") -> list[dict[str, Any]]:
     """Retrieve the most semantically relevant sources for a query.
 
     Returns a list of metadata dicts ranked by similarity.
+    If namespace is provided, searches only within that namespace.
     """
     index = _get_pinecone_index()
     embeddings = _get_embeddings()
 
     query_vec = embeddings.embed_query(query)
-    results = index.query(vector=query_vec, top_k=top_k, include_metadata=True)
+    results = index.query(vector=query_vec, top_k=top_k, include_metadata=True, namespace=namespace)
 
     retrieved: list[dict[str, Any]] = []
     for match in results.get("matches", []):
@@ -106,5 +135,5 @@ def retrieve(query: str, top_k: int = 10) -> list[dict[str, Any]]:
                 "score": match.get("score", 0.0),
             }
         )
-    logger.info("Retrieved %d results from Pinecone for: %s", len(retrieved), query)
+    logger.info("Retrieved %d results from Pinecone for: %s (namespace: '%s')", len(retrieved), query, namespace)
     return retrieved

@@ -1,4 +1,0 @@
-Requirement already satisfied: bcrypt in ./venv/lib/python3.14/site-packages (5.0.0)
-
-[notice] A new release of pip is available: 25.3 -> 26.0.1
-[notice] To update, run: /home/huzaifawoltrio/Work/DeepScholar/backend/venv/bin/python -m pip install --upgrade pip

@@ -25,8 +25,8 @@ class Settings(BaseSettings):
 
     # AI / LLM
     GOOGLE_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.5-flash"
-    EMBEDDING_MODEL: str = "models/gemini-embedding-001"
+    GEMINI_MODEL: str = "gemini-2.5-flash-lite"
+    EMBEDDING_MODEL: str = "models/text-embedding-004"
 
     # Pinecone
     PINECONE_API_KEY: str = ""
